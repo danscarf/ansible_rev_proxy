@@ -40,6 +40,7 @@
     include_role:
       name: nginxinc.nginx_core.nginx
 
+  # https://github.com/nginxinc/ansible-collection-nginx/blob/main/playbooks/deploy-nginx-web-server-proxy.yml
   # https://timothy-quinn.com/using-nginx-as-a-reverse-proxy-for-multiple-sites/
   - name: Configure Nginx as a reverse proxy
     include_role:
