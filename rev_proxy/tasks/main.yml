@@ -1,0 +1,89 @@
+---
+
+  - name: Disable cloud-init
+    file:
+        path: /etc/cloud/cloud-init.disabled
+        state: touch
+
+  - name: Ensure server is registered with RedHat.
+    redhat_subscription:
+      state: present
+      username: "{{ redhat_username }}"
+      password: "{{ redhat_password }}"
+      auto_attach: true
+    tags:
+      - register
+
+  - name: Upgrade all packages
+    yum:
+      state: latest
+      name: '*'
+    tags:
+      - upgrade_packages
+
+
+  - name: Open port 80 permanently
+    firewalld:
+      port: 80/tcp
+      permanent: yes
+      immediate: yes
+      state: enabled
+
+  # https://stackoverflow.com/questions/23948527/13-permission-denied-while-connecting-to-upstreamnginx
+  - name: Set httpd_can_network_connect flag on and keep it persistent across reboots
+    seboolean:
+      name: httpd_can_network_connect
+      state: yes
+      persistent: yes
+
+  - name: Install Nginx
+    include_role:
+      name: nginxinc.nginx_core.nginx
+
+  # https://timothy-quinn.com/using-nginx-as-a-reverse-proxy-for-multiple-sites/
+  - name: Configure Nginx as a reverse proxy
+    include_role:
+      name: nginxinc.nginx_core.nginx_config
+    vars:
+      - nginx_config_http_template_enable: true
+      - nginx_config_http_template:
+          app:
+            template_file: http/default.conf.j2
+            conf_file_name: default.conf
+            conf_file_location: /etc/nginx/conf.d/
+            servers:
+              main:
+                listen:
+                  listen_localhost:
+                    port: 80
+                server_name: nginx.home
+                access_log:
+                  - name: main
+                    location: /var/log/nginx/access.log
+                reverse_proxy:
+                  locations:
+                    main:
+                      location: /
+                      proxy_pass: http://10.0.0.16:8080
+                      proxy_set_header:
+                        header_host:
+                          name: Host
+                          value: $host
+              server_one:
+                listen:
+                  listen_server_one:
+                    port: 80
+                server_name: awx2.home
+                access_log:
+                  - name: main
+                    location: /var/log/nginx/access.log
+                reverse_proxy:
+                  locations:
+                    main:
+                      location: /
+                      proxy_pass: http://10.0.0.56
+                      proxy_set_header:
+                        header_host:
+                          name: Host
+                          value: $host
+              
